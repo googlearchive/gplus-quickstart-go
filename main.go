@@ -75,7 +75,7 @@ type ClaimSet struct {
 
 // exchange takes an authentication code and exchanges it with the OAuth
 // endpoint for a Google API bearer token and a Google+ ID
-func exchange(code string) (accessToken string, gplusId string, err error) {
+func exchange(code string) (accessToken string, idToken string, err error) {
 	// Exchange the authorization code for a credentials object via a POST request
 	addr := "https://accounts.google.com/o/oauth2/token"
 	values := url.Values{
@@ -99,6 +99,11 @@ func exchange(code string) (accessToken string, gplusId string, err error) {
 		return "", "", fmt.Errorf("Decoding access token: %v", err)
 	}
 
+	return token.AccessToken, token.IdToken, nil
+}
+
+// decodeIdToken takes an ID Token and decodes it to fetch the Google+ ID within
+func decodeIdToken (idToken string) (gplusID string, err error) {
 	// An ID token is a cryptographically-signed JSON object encoded in base 64.
 	// Normally, it is critical that you validate an ID token before you use it,
 	// but since you are communicating directly with Google over an
@@ -108,21 +113,23 @@ func exchange(code string) (accessToken string, gplusId string, err error) {
 	// token to other components of your app, it is extremely important that the
 	// other components validate the token before using it.
 	var set ClaimSet
-	if id := token.IdToken; id != "" {
-		parts := strings.Split(id, ".")
+	if idToken != "" {
+		// Check that the padding is correct for a base64decode
+		parts := strings.Split(idToken, ".")
 		if len(parts) < 2 {
-			return "", "", fmt.Errorf("Malformed ID token")
+			return "", fmt.Errorf("Malformed ID token")
 		}
+		// Decode the ID token
 		b, err := base64Decode(parts[1])
 		if err != nil {
-			return "", "", fmt.Errorf("Malformed ID token: %v", err)
+			return "", fmt.Errorf("Malformed ID token: %v", err)
 		}
 		err = json.Unmarshal(b, &set)
 		if err != nil {
-			return "", "", fmt.Errorf("Malformed ID token: %v", err)
+			return "", fmt.Errorf("Malformed ID token: %v", err)
 		}
 	}
-	return token.AccessToken, set.Sub, nil
+	return set.Sub, nil
 }
 
 // index sets up a session for the current user and serves the index page
@@ -188,7 +195,8 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 	}
 	code := string(x)
 
-	token, gplusID, err := exchange(code)
+	accessToken, idToken, err := exchange(code)
+        gplusID, err := decodeIdToken(idToken)
 
 	// Check if the user is already connected
 	storedToken := session.Values["accessToken"]
@@ -199,7 +207,7 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 	}
 
 	// Store the access token in the session for later use
-	session.Values["accessToken"] = token
+	session.Values["accessToken"] = accessToken
 	session.Values["gplusID"] = gplusID
 	session.Save(r, w)
 	return nil
