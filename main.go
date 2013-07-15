@@ -196,7 +196,13 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 	code := string(x)
 
 	accessToken, idToken, err := exchange(code)
+	if err != nil {
+	        return &appError{err, "Error exchanging code for access token", 500}
+	}
         gplusID, err := decodeIdToken(idToken)
+	if err != nil {
+	        return &appError{err, "Error decoding ID token", 500}
+	}
 
 	// Check if the user is already connected
 	storedToken := session.Values["accessToken"]
