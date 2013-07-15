@@ -102,7 +102,7 @@ func exchange(code string) (accessToken string, idToken string, err error) {
 	return token.AccessToken, token.IdToken, nil
 }
 
-// decodeIdToken takes an ID Token and decodes it to fetch the Gogole+ ID within
+// decodeIdToken takes an ID Token and decodes it to fetch the Google+ ID within
 func decodeIdToken (idToken string) (gplusID string, err error) {
 	// An ID token is a cryptographically-signed JSON object encoded in base 64.
 	// Normally, it is critical that you validate an ID token before you use it,
