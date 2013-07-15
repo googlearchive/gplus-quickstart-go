@@ -159,8 +159,7 @@ var helper = (function() {
       console.log(this.authResult.code);
       $.ajax({
         type: 'POST',
-        url: window.location.href + 'connect?state={{ .State }}&gplus_id=' +
-            gplusId,
+        url: window.location.href + 'connect?state={{ .State }}',
         contentType: 'application/octet-stream; charset=utf-8',
         success: function(result) {
           console.log(result);
