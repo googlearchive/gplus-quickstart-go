@@ -102,6 +102,36 @@ func exchange(code string) (accessToken string, idToken string, err error) {
 	return token.AccessToken, token.IdToken, nil
 }
 
+// decodeIdToken takes an ID Token and decodes it to fetch the Gogole+ ID within
+func decodeIdToken (idToken string) (gplusID string, err error) {
+	// An ID token is a cryptographically-signed JSON object encoded in base 64.
+	// Normally, it is critical that you validate an ID token before you use it,
+	// but since you are communicating directly with Google over an
+	// intermediary-free HTTPS channel and using your Client Secret to
+	// authenticate yourself to Google, you can be confident that the token you
+	// receive really comes from Google and is valid. If your server passes the ID
+	// token to other components of your app, it is extremely important that the
+	// other components validate the token before using it.
+	var set ClaimSet
+	if idToken != "" {
+		// Check that the padding is correct for a base64decode
+		parts := strings.Split(idToken, ".")
+		if len(parts) < 2 {
+			return "", fmt.Errorf("Malformed ID token")
+		}
+		// Decode the ID token
+		b, err := base64Decode(parts[1])
+		if err != nil {
+			return "", fmt.Errorf("Malformed ID token: %v", err)
+		}
+		err = json.Unmarshal(b, &set)
+		if err != nil {
+			return "", fmt.Errorf("Malformed ID token: %v", err)
+		}
+	}
+	return set.Sub, nil
+}
+
 // index sets up a session for the current user and serves the index page
 func index(w http.ResponseWriter, r *http.Request) *appError {
 	// This check prevents the "/" handler from handling all requests by default
@@ -165,35 +195,8 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 	}
 	code := string(x)
 
-	token, id, err := exchange(code)
-
-	// An ID token is a cryptographically-signed JSON object encoded in base 64.
-	// Normally, it is critical that you validate an ID token before you use it,
-	// but since you are communicating directly with Google over an
-	// intermediary-free HTTPS channel and using your Client Secret to
-	// authenticate yourself to Google, you can be confident that the token you
-	// receive really comes from Google and is valid. If your server passes the ID
-	// token to other components of your app, it is extremely important that the
-	// other components validate the token before using it.
-	var set ClaimSet
-	if id != "" {
-		// Check that the padding is correct for a base64decode
-		parts := strings.Split(id, ".")
-		if len(parts) < 2 {
-			m := "Malformed ID token"
-		        return &appError{errors.New(m), m, 500}
-		}
-		// Decode the ID token
-		b, err := base64Decode(parts[1])
-		if err != nil {
-			return &appError{err, "Malformed ID token", 500}
-		}
-		err = json.Unmarshal(b, &set)
-		if err != nil {
-			return &appError{err, "Malformed ID token", 500}
-		}
-	}
-	gplusID := set.Sub
+	accessToken, idToken, err := exchange(code)
+        gplusID, err := decodeIdToken(idToken)
 
 	// Check if the user is already connected
 	storedToken := session.Values["accessToken"]
@@ -204,7 +207,7 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 	}
 
 	// Store the access token in the session for later use
-	session.Values["accessToken"] = token
+	session.Values["accessToken"] = accessToken
 	session.Values["gplusID"] = gplusID
 	session.Save(r, w)
 	return nil
