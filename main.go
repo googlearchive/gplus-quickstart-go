@@ -29,8 +29,8 @@ import (
 	"net/url"
 	"strings"
 
-	"code.google.com/p/goauth2/oauth"
-	"code.google.com/p/google-api-go-client/plus/v1"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/plus/v1"
 	"github.com/gorilla/sessions"
 )
 
