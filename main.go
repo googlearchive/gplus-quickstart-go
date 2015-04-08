@@ -325,6 +325,7 @@ func base64Decode(s string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(s)
 }
 
+
 func main() {
 	// Register a handler for our API calls
 	http.Handle("/connect", appHandler(connect))
@@ -333,8 +334,12 @@ func main() {
 
 	// Serve the index.html page
 	http.Handle("/", appHandler(index))
+	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, r.URL.Path[1:])
+	})
 	err := http.ListenAndServe(":4567", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
+
 }
