@@ -29,13 +29,13 @@ import (
 	"net/url"
 	"strings"
 
-	"code.google.com/p/goauth2/oauth"
-	"code.google.com/p/google-api-go-client/plus/v1"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"github.com/google/google-api-go-client/plus/v1"
 	"github.com/gorilla/sessions"
 )
 
 // Update your Google API project information here.
-
 const (
 	clientID        = "YOUR_CLIENT_ID"
 	clientSecret    = "YOUR_CLIENT_SECRET"
@@ -43,13 +43,12 @@ const (
 )
 
 // config is the configuration specification supplied to the OAuth package.
-var config = &oauth.Config{
-	ClientId:     clientID,
+var config = &oauth2.Config{
+	ClientID:     clientID,
 	ClientSecret: clientSecret,
 	// Scope determines which API calls you are authorized to make
-	Scope:    "https://www.googleapis.com/auth/plus.login",
-	AuthURL:  "https://accounts.google.com/o/oauth2/auth",
-	TokenURL: "https://accounts.google.com/o/oauth2/token",
+	Scopes:    []string{"https://www.googleapis.com/auth/plus.login"},
+	Endpoint: google.Endpoint,
 	// Use "postmessage" for the code-flow for server side apps
 	RedirectURL: "postmessage",
 }
@@ -248,6 +247,12 @@ func disconnect(w http.ResponseWriter, r *http.Request) *appError {
 	return nil
 }
 
+// TokenSource type for oauth2
+type tokenSource struct{ token *oauth2.Token }
+func (t *tokenSource) Token() (*oauth2.Token, error) {
+		return t.token, nil
+}
+
 // people fetches the list of people user has shared with this app
 func people(w http.ResponseWriter, r *http.Request) *appError {
 	session, err := store.Get(r, "sessionName")
@@ -263,11 +268,12 @@ func people(w http.ResponseWriter, r *http.Request) *appError {
 	}
 
 	// Create a new authorized API client
-	t := &oauth.Transport{Config: config}
-	tok := new(oauth.Token)
+	tok := new(oauth2.Token)
 	tok.AccessToken = token.(string)
-	t.Token = tok
-	service, err := plus.New(t.Client())
+	ts := &tokenSource{ token: tok }
+	t := &oauth2.Transport{Source: ts}
+	client:= http.Client{Transport: t}
+	service, err := plus.New(&client)
 	if err != nil {
 		return &appError{err, "Create Plus Client", 500}
 	}
