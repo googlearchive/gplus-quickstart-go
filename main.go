@@ -77,7 +77,7 @@ type ClaimSet struct {
 func exchange(code string) (accessToken string, idToken string, err error) {
 	tok, err := config.Exchange(oauth2.NoContext, code)
 	if err != nil {
-		return "", "", fmt.Errorf("Exchanging code: %v", err)
+		return "", "", fmt.Errorf("Error while exchanging code: %v", err)
 	}
 	// TODO: return ID token in second parameter from updated oauth2 interface
 	return tok.AccessToken, tok.Extra("id_token").(string), nil
@@ -85,7 +85,6 @@ func exchange(code string) (accessToken string, idToken string, err error) {
 
 // decodeIdToken takes an ID Token and decodes it to fetch the Google+ ID within
 func decodeIdToken(idToken string) (gplusID string, err error) {
-	fmt.Fprintf(os.Stderr, "dump: %s\n", idToken)
 	// An ID token is a cryptographically-signed JSON object encoded in base 64.
 	// Normally, it is critical that you validate an ID token before you use it,
 	// but since you are communicating directly with Google over an
@@ -249,7 +248,7 @@ func people(w http.ResponseWriter, r *http.Request) *appError {
 	tok.AccessToken = token.(string)
 	ts := oauth2.StaticTokenSource(tok)
 	t := &oauth2.Transport{Source: ts}
-	client := http.Client{Transport: t}
+	client := oauth2.NewClient(oauth2.NoContext, oauth2.StaticTokenSource(tok))
 	service, err := plus.New(&client)
 	if err != nil {
 		return &appError{err, "Create Plus Client", 500}
