@@ -246,10 +246,8 @@ func people(w http.ResponseWriter, r *http.Request) *appError {
 	// Create a new authorized API client
 	tok := new(oauth2.Token)
 	tok.AccessToken = token.(string)
-	ts := oauth2.StaticTokenSource(tok)
-	t := &oauth2.Transport{Source: ts}
 	client := oauth2.NewClient(oauth2.NoContext, oauth2.StaticTokenSource(tok))
-	service, err := plus.New(&client)
+	service, err := plus.New(client)
 	if err != nil {
 		return &appError{err, "Create Plus Client", 500}
 	}
