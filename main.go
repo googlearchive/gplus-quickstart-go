@@ -29,10 +29,10 @@ import (
 	"net/url"
 	"strings"
 
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"github.com/google/google-api-go-client/plus/v1"
 	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // Update your Google API project information here.
@@ -47,7 +47,7 @@ var config = &oauth2.Config{
 	ClientID:     clientID,
 	ClientSecret: clientSecret,
 	// Scope determines which API calls you are authorized to make
-	Scopes:    []string{"https://www.googleapis.com/auth/plus.login"},
+	Scopes:   []string{"https://www.googleapis.com/auth/plus.login"},
 	Endpoint: google.Endpoint,
 	// Use "postmessage" for the code-flow for server side apps
 	RedirectURL: "postmessage",
@@ -75,34 +75,16 @@ type ClaimSet struct {
 // exchange takes an authentication code and exchanges it with the OAuth
 // endpoint for a Google API bearer token and a Google+ ID
 func exchange(code string) (accessToken string, idToken string, err error) {
-	// Exchange the authorization code for a credentials object via a POST request
-	addr := "https://accounts.google.com/o/oauth2/token"
-	values := url.Values{
-		"Content-Type":  {"application/x-www-form-urlencoded"},
-		"code":          {code},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-		"redirect_uri":  {config.RedirectURL},
-		"grant_type":    {"authorization_code"},
-	}
-	resp, err := http.PostForm(addr, values)
+	tok, err := config.Exchange(oauth2.NoContext, code)
 	if err != nil {
-		return "", "", fmt.Errorf("Exchanging code: %v", err)
+		return "", "", fmt.Errorf("Error while exchanging code: %v", err)
 	}
-	defer resp.Body.Close()
-
-	// Decode the response body into a token object
-	var token Token
-	err = json.NewDecoder(resp.Body).Decode(&token)
-	if err != nil {
-		return "", "", fmt.Errorf("Decoding access token: %v", err)
-	}
-
-	return token.AccessToken, token.IdToken, nil
+	// TODO: return ID token in second parameter from updated oauth2 interface
+	return tok.AccessToken, tok.Extra("id_token").(string), nil
 }
 
 // decodeIdToken takes an ID Token and decodes it to fetch the Google+ ID within
-func decodeIdToken (idToken string) (gplusID string, err error) {
+func decodeIdToken(idToken string) (gplusID string, err error) {
 	// An ID token is a cryptographically-signed JSON object encoded in base 64.
 	// Normally, it is critical that you validate an ID token before you use it,
 	// but since you are communicating directly with Google over an
@@ -196,11 +178,11 @@ func connect(w http.ResponseWriter, r *http.Request) *appError {
 
 	accessToken, idToken, err := exchange(code)
 	if err != nil {
-	        return &appError{err, "Error exchanging code for access token", 500}
+		return &appError{err, "Error exchanging code for access token", 500}
 	}
-        gplusID, err := decodeIdToken(idToken)
+	gplusID, err := decodeIdToken(idToken)
 	if err != nil {
-	        return &appError{err, "Error decoding ID token", 500}
+		return &appError{err, "Error decoding ID token", 500}
 	}
 
 	// Check if the user is already connected
@@ -247,12 +229,6 @@ func disconnect(w http.ResponseWriter, r *http.Request) *appError {
 	return nil
 }
 
-// TokenSource type for oauth2
-type tokenSource struct{ token *oauth2.Token }
-func (t *tokenSource) Token() (*oauth2.Token, error) {
-		return t.token, nil
-}
-
 // people fetches the list of people user has shared with this app
 func people(w http.ResponseWriter, r *http.Request) *appError {
 	session, err := store.Get(r, "sessionName")
@@ -270,10 +246,8 @@ func people(w http.ResponseWriter, r *http.Request) *appError {
 	// Create a new authorized API client
 	tok := new(oauth2.Token)
 	tok.AccessToken = token.(string)
-	ts := &tokenSource{ token: tok }
-	t := &oauth2.Transport{Source: ts}
-	client:= http.Client{Transport: t}
-	service, err := plus.New(&client)
+	client := oauth2.NewClient(oauth2.NoContext, oauth2.StaticTokenSource(tok))
+	service, err := plus.New(client)
 	if err != nil {
 		return &appError{err, "Create Plus Client", 500}
 	}
@@ -330,7 +304,6 @@ func base64Decode(s string) ([]byte, error) {
 	}
 	return base64.URLEncoding.DecodeString(s)
 }
-
 
 func main() {
 	// Register a handler for our API calls
